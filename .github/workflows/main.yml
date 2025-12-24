@@ -1,0 +1,38 @@
+name: Daily Gold Tracker
+
+# 设置触发时间：每天国际标准时间 09:00 (北京时间下午 17:00)
+# GLD 数据通常在美国收盘后更新，下午跑比较稳妥
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  # 允许手动点击按钮运行（方便测试）
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 赋予写入权限，以便保存数据
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install pandas requests
+
+    - name: Run script
+      run: python main.py
+
+    - name: Commit and push if changes
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+        git add gld_data.csv
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update Gold Data" && git push)
