@@ -45,52 +45,50 @@ def fetch_and_save():
         if os.path.exists(FILE_NAME):
             history = pd.read_csv(FILE_NAME)
         else:
-            # 初始化时增加 Change_Pct 列
             history = pd.DataFrame(columns=['Date', 'Tonnes', 'Change_Pct'])
         
-        # 确保 Date 列是字符串格式，防止比较出错
+        # 确保 Date 列是字符串格式
         history['Date'] = history['Date'].astype(str)
         
-        # 3. 查重并写入
+        # === 核心修改点 ===
+        # 判断条件：(1) 日期不存在 OR (2) 列缺失
+        # 只要满足其中一个，就进入更新流程
+        need_update = False
+        
         if date_str not in history['Date'].values:
-            # 创建新行
+            print(">>> 发现新日期，准备追加...")
             new_row = pd.DataFrame({'Date': [date_str], 'Tonnes': [tonnes]})
             history = pd.concat([history, new_row], ignore_index=True)
+            need_update = True
+        elif 'Change_Pct' not in history.columns:
+            print(">>> 发现缺少 Change_Pct 列，准备重算结构...")
+            need_update = True
             
-            # --- 新增核心功能：计算环比变化 ---
-            
-            # A. 确保按日期排序 (防止数据乱序导致计算错误)
+        # 3. 只有需要更新时才进行计算和保存
+        if need_update:
+            # A. 排序
             history['Date'] = pd.to_datetime(history['Date'])
             history = history.sort_values('Date').reset_index(drop=True)
             
-            # B. 确保吨数是数字类型
+            # B. 确保数字类型
             history['Tonnes'] = history['Tonnes'].astype(float)
             
-            # C. 使用 pct_change() 计算每日变化率 (乘以100变百分比)
+            # C. 计算百分比
             history['Change_Pct'] = history['Tonnes'].pct_change() * 100
-            
-            # D. 保留 4 位小数，看起来更整洁
             history['Change_Pct'] = history['Change_Pct'].round(4)
             
-            # E. 格式化日期回字符串 (为了保存 CSV)
+            # D. 格式化日期
             history['Date'] = history['Date'].dt.strftime('%Y-%m-%d')
             
-            # 获取最新算出来的变化
-            latest_change = history.iloc[-1]['Change_Pct']
-            
-            # 保存文件
+            # E. 保存
             history.to_csv(FILE_NAME, index=False)
             
-            # 打印带符号的变化率 (例如: +0.2500%)
-            if pd.isna(latest_change):
-                change_disp = "0.00%" # 第一天没有前值
-            else:
-                change_disp = f"{latest_change:+.4f}%"
-                
+            latest_change = history.iloc[-1]['Change_Pct']
+            change_disp = f"{latest_change:+.4f}%" if not pd.isna(latest_change) else "0.00%"
             print(f"✅ 数据已更新: {date_str} | 持仓: {tonnes}吨 | 日环比: {change_disp}")
             
         else:
-            print(f"数据已存在 ({date_str})，跳过写入")
+            print(f"数据已存在且格式完整 ({date_str})，跳过写入")
             
     except Exception as e:
         print(f"出错: {e}")
